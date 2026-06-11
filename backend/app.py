@@ -43,7 +43,7 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 DEHAZED_DIR = os.path.join(BASE_DIR, "dehazed")
 CSV_PATH = os.path.join(BASE_DIR, "sensor_log.csv")
 
-DEHAZE_MODE = "clahe"
+DEHAZE_MODE = "natural"
 FOG_HUMIDITY_THRESHOLD = 90.0
 
 # CSV columns — now includes 'map'

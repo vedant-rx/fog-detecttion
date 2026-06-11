@@ -131,6 +131,66 @@ def apply_clahe(image, clip_limit=2.0, tile_grid_size=(8, 8)):
     l_eq = clahe.apply(l)
     return cv2.cvtColor(cv2.merge([l_eq, a, b]), cv2.COLOR_LAB2BGR)
 
+def apply_selective_clahe(
+    image,
+    transmission,
+    clip_limit=3.0,
+    tile_grid_size=(8, 8)
+):
+    """
+    Apply CLAHE only to foggy regions using the refined
+    transmission map from DCP.
+
+    transmission:
+        1.0 = clear
+        0.0 = dense fog
+    """
+
+    # Build fog confidence map
+    fog_mask = np.clip(
+        (0.6 - transmission) / 0.6,
+        0,
+        1
+    )
+
+    # Emphasize dense fog regions
+    fog_mask = np.power(fog_mask, 1.5)
+
+    # Smooth transitions
+    fog_mask = cv2.GaussianBlur(
+        fog_mask,
+        (21, 21),
+        0
+    )
+
+    # CLAHE in LAB color space
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+
+    l, a, b = cv2.split(lab)
+
+    clahe = cv2.createCLAHE(
+        clipLimit=clip_limit,
+        tileGridSize=tile_grid_size
+    )
+
+    l_clahe = clahe.apply(l)
+
+    clahe_img = cv2.cvtColor(
+        cv2.merge([l_clahe, a, b]),
+        cv2.COLOR_LAB2BGR
+    )
+
+    # Blend according to fog strength
+    fog_mask = fog_mask[:, :, np.newaxis]
+
+    result = (
+        image.astype(np.float32) * (1.0 - fog_mask)
+        +
+        clahe_img.astype(np.float32) * fog_mask
+    )
+
+    return np.clip(result, 0, 255).astype(np.uint8)
+
 
 def blend_with_original(original, dehazed, blend_ratio=0.75):
     orig_f = original.astype(np.float64)
@@ -344,8 +404,8 @@ def compute_metrics(hazy_image, dehazed_image):
 # ===========================================================================
 MODE_PRESETS = {
     "natural": {
-        "omega": 0.85, "t0": 0.3, "max_A": 0.85, "gamma": 0.95,
-        "use_clahe": True, "blend": 0.8,
+        "omega": 0.85, "t0": 0.3, "max_A": 1.0, "gamma": 0.95,
+        "use_clahe": True, "blend": 1.0,
         "match_lum": True, "white_balance": True,
     },
     "strong": {
@@ -397,6 +457,18 @@ def dehaze_image(
     transmission = estimate_transmission(image, A, p["omega"], patch_size)
     gray = cv2.cvtColor(hazy_image, cv2.COLOR_BGR2GRAY).astype(np.float64) / 255.0
     transmission_refined = guided_filter(gray, transmission, guided_radius, guided_eps)
+    print("Atmospheric Light:", A)
+
+    print(
+        "Transmission:",
+        transmission_refined.min(),
+        transmission_refined.mean(),
+        transmission_refined.max()
+        )
+    transmission_refined = np.clip(
+        transmission_refined,
+        0.1,
+        1.0)
     dehazed = recover_image(image, transmission_refined, A, p["t0"])
     dehazed = (dehazed * 255).astype(np.uint8)
 
@@ -404,10 +476,19 @@ def dehaze_image(
         dehazed = match_luminance(hazy_image, dehazed)
     if p["white_balance"]:
         dehazed = gray_world_white_balance(dehazed)
-    if p["gamma"] != 1.0:
-        dehazed = apply_gamma(dehazed, p["gamma"])
     if p["use_clahe"]:
-        dehazed = apply_clahe(dehazed)
+        dehazed = apply_selective_clahe(
+        dehazed,
+        transmission_refined,
+        clip_limit=3.0,
+        tile_grid_size=(8, 8)
+    )
+
+    if p["gamma"] != 1.0:
+        dehazed = apply_gamma(
+        dehazed,
+        p["gamma"]
+    )
     if p["blend"] < 1.0:
         dehazed = blend_with_original(hazy_image, dehazed, p["blend"])
 
