@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Radio, Camera, Loader, Image, Info, CloudFog, Moon, Sun } from 'lucide-react';
+import { Home, Radio, Camera, Loader, Image, Info, CloudFog, Moon, Sun, FolderOpen } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { path: '/dashboard/upload', label: 'Captured Image', icon: Camera },
   { path: '/dashboard/processing', label: 'Processing', icon: Loader },
   { path: '/dashboard/results', label: 'Results', icon: Image },
+  { path: '/dashboard/gallery', label: 'Gallery', icon: FolderOpen },
   { path: '/dashboard/about', label: 'About Project', icon: Info },
 ];
 

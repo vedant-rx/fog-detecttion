@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Download,
-  ZoomIn,
   CheckCircle,
   TrendingUp,
   Eye,
-  Layers,
   ImageOff,
   Activity,
   Target,
+  Car,
+  ArrowRight,
+  Scan,
 } from 'lucide-react';
-import * as Slider from '@radix-ui/react-slider';
 import { toast } from 'sonner';
 import {
   fetchLatest,
@@ -20,8 +20,6 @@ import {
 } from '../lib/api';
 
 export default function Results() {
-  const [sliderValue, setSliderValue] = useState([50]);
-  const [zoomLevel] = useState(100);
   const [latest, setLatest] = useState<LatestCapture | null>(null);
   const [backendOnline, setBackendOnline] = useState(true);
 
@@ -50,14 +48,34 @@ export default function Results() {
   const humidity = latest?.humidity_percent ?? 0;
   const processingMs = latest?.processing_time_ms ?? 0;
   const captureTime = latest?.timestamp ?? '';
-  const beforeSrc = latest?.original_url;
-  const afterSrc = latest?.dehazed_url;
+  const beforeSrc           = latest?.original_url;
+  const afterSrc            = latest?.dehazed_url;
+  const annHazySrc          = latest?.annotated_hazy_url;
+  const annDehazedSrc       = latest?.annotated_dehazed_url;
 
   const entropyHazy = latest?.entropy_hazy ?? 0;
   const entropyDehazed = latest?.entropy_dehazed ?? 0;
   const entropyGain = latest?.entropy_gain ?? 0;
   const ssim = latest?.ssim ?? 0;
   const mapScore = latest?.map ?? 0;
+  const detectedHazy = latest?.detected_hazy ?? {};
+  const detectedDehazed = latest?.detected_dehazed ?? {};
+
+  // All classes seen across both images
+  const allClasses = Array.from(
+    new Set([...Object.keys(detectedHazy), ...Object.keys(detectedDehazed)])
+  ).sort();
+
+  // Colour scheme per object class
+  const classColors: Record<string, { bg: string; text: string; border: string }> = {
+    person:     { bg: 'bg-green-500/20',  text: 'text-green-300',  border: 'border-green-500/40' },
+    car:        { bg: 'bg-blue-500/20',   text: 'text-blue-300',   border: 'border-blue-500/40' },
+    truck:      { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/40' },
+    bus:        { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-500/40' },
+    motorcycle: { bg: 'bg-pink-500/20',   text: 'text-pink-300',   border: 'border-pink-500/40' },
+    bicycle:    { bg: 'bg-cyan-500/20',   text: 'text-cyan-300',   border: 'border-cyan-500/40' },
+  };
+  const defaultColor = { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-500/40' };
 
   const confidencePct = hasData ? Math.max(0, Math.min(100, ssim * 100)) : 0;
   const entropyGainPct = hasData ? Math.max(0, Math.min(100, (entropyGain / 2.0) * 100)) : 0;
@@ -153,7 +171,7 @@ export default function Results() {
 
         <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <Layers className="w-8 h-8 text-blue-400" />
+            <Scan className="w-8 h-8 text-blue-400" />
             <div>
               <p className="text-sm text-slate-400">Process Time</p>
               <p className="text-2xl font-bold text-blue-100">
@@ -164,110 +182,125 @@ export default function Results() {
         </div>
       </motion.div>
 
-      {/* Image Comparison Slider (with corrected layer order) */}
+      {/* Detection Side-by-Side View */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.2 }}
         className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
       >
-        <div className="flex items-center justify-between mb-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <Layers className="w-6 h-6 text-cyan-400" />
-            <h2 className="text-xl font-semibold text-cyan-100">Image Comparison</h2>
+            <Scan className="w-6 h-6 text-cyan-400" />
+            <h2 className="text-xl font-semibold text-cyan-100">Detection View</h2>
+            <span className="text-xs px-2 py-0.5 bg-cyan-500/20 border border-cyan-500/40 rounded-full text-cyan-300 font-medium">YOLOv8n</span>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-xl">
-              <ZoomIn className="w-4 h-4 text-slate-400" />
-              <span className="text-sm text-slate-300">{zoomLevel}%</span>
-            </div>
-
-            <button
-              onClick={downloadImage}
-              disabled={!hasData}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl hover:shadow-lg hover:shadow-cyan-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" />
-              View Enhanced
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 inline-flex items-center gap-4 flex-wrap">
-            <div className="font-mono text-cyan-100 text-sm">
-              {hasData ? `Captured at: ${captureTime}` : 'Waiting for capture...'}
-            </div>
-            <div className="text-sm text-slate-400">
-              Temp: <span className="font-mono text-cyan-100">{hasData ? `${temp.toFixed(1)}°C` : '—'}</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              Humidity: <span className="font-mono text-cyan-100">{hasData ? `${humidity.toFixed(0)}%` : '—'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative bg-slate-800 rounded-xl overflow-hidden aspect-video">
-          {hasData && beforeSrc && afterSrc ? (
-            <>
-              {/* Bottom layer: ENHANCED (clear) */}
-              <div className="absolute inset-0">
-                <img src={afterSrc} alt="Enhanced clear" className="w-full h-full object-cover" />
-              </div>
-
-              {/* Top layer: ORIGINAL (foggy) clipped by slider */}
-              <div
-                className="absolute inset-0 overflow-hidden"
-                style={{ width: `${sliderValue[0]}%` }}
-              >
-                <img src={beforeSrc} alt="Original foggy" className="w-full h-full object-cover" />
-              </div>
-
-              <div className="absolute top-4 left-4 px-3 py-1.5 bg-black/70 backdrop-blur-sm border border-red-500/50 rounded-lg">
-                <span className="text-xs text-red-100 font-medium">ORIGINAL (FOGGY)</span>
-              </div>
-              <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 backdrop-blur-sm border border-green-500/50 rounded-lg">
-                <span className="text-xs text-green-100 font-medium">ENHANCED (CLEAR)</span>
-              </div>
-
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-lg z-10"
-                style={{ left: `${sliderValue[0]}%` }}
-              >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-cyan-500 rounded-full" />
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500">
-              <ImageOff className="w-16 h-16" />
-              <p className="text-sm">{backendOnline ? 'Waiting for first capture from rover...' : 'Backend server is offline'}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 px-4">
-          <Slider.Root
-            className="relative flex items-center select-none touch-none w-full h-5"
-            value={sliderValue}
-            onValueChange={setSliderValue}
-            max={100}
-            step={1}
+          <button
+            onClick={downloadImage}
             disabled={!hasData}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Slider.Track className="bg-slate-700 relative grow rounded-full h-2">
-              <Slider.Range className="absolute bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full h-full" />
-            </Slider.Track>
-            <Slider.Thumb
-              className="block w-6 h-6 bg-white shadow-lg rounded-full hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              aria-label="Comparison slider"
-            />
-          </Slider.Root>
-          <div className="flex justify-between mt-2 text-xs text-slate-400">
-            <span>Original</span>
-            <span>Enhanced</span>
+            <Download className="w-4 h-4" />
+            Save Enhanced
+          </button>
+        </div>
+
+        {/* Capture metadata bar */}
+        {hasData && (
+          <div className="mb-5 flex items-center gap-4 flex-wrap px-3 py-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50 text-sm">
+            <span className="font-mono text-cyan-100">{captureTime}</span>
+            <span className="text-slate-400">Temp: <span className="text-cyan-100 font-mono">{temp.toFixed(1)}°C</span></span>
+            <span className="text-slate-400">Humidity: <span className="text-cyan-100 font-mono">{humidity.toFixed(0)}%</span></span>
+            <span className="text-slate-400">Processed in: <span className="text-cyan-100 font-mono">{processingMs}ms</span></span>
+          </div>
+        )}
+
+        {/* Two-panel detection images */}
+        <div className="grid md:grid-cols-2 gap-4">
+
+          {/* --- Left: Original Foggy + detections --- */}
+          <div className="relative rounded-xl overflow-hidden bg-slate-800 aspect-video group">
+            {hasData && annHazySrc ? (
+              <>
+                <img
+                  src={annHazySrc}
+                  alt="Original foggy with detections"
+                  className="w-full h-full object-cover"
+                />
+                {/* Label */}
+                <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 bg-black/75 backdrop-blur-sm border border-red-500/50 rounded-lg">
+                  <div className="w-2 h-2 rounded-full bg-red-400" />
+                  <span className="text-xs text-red-100 font-semibold tracking-wide">ORIGINAL (FOGGY)</span>
+                </div>
+                {/* Detection count badge */}
+                {Object.keys(detectedHazy).length > 0 && (
+                  <div className="absolute bottom-3 left-3 flex gap-1.5 flex-wrap">
+                    {Object.entries(detectedHazy).map(([cls, count]) => (
+                      <span
+                        key={cls}
+                        className={`px-2 py-0.5 rounded-md text-xs font-bold border capitalize ${
+                          (classColors[cls] ?? defaultColor).bg
+                        } ${
+                          (classColors[cls] ?? defaultColor).text
+                        } ${
+                          (classColors[cls] ?? defaultColor).border
+                        }`}
+                      >
+                        {count}× {cls}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500">
+                <ImageOff className="w-12 h-12" />
+                <p className="text-sm">{backendOnline ? 'Waiting for capture...' : 'Backend offline'}</p>
+              </div>
+            )}
+          </div>
+
+          {/* --- Right: Dehazed + detections --- */}
+          <div className="relative rounded-xl overflow-hidden bg-slate-800 aspect-video group">
+            {hasData && annDehazedSrc ? (
+              <>
+                <img
+                  src={annDehazedSrc}
+                  alt="Dehazed with detections"
+                  className="w-full h-full object-cover"
+                />
+                {/* Label */}
+                <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 bg-black/75 backdrop-blur-sm border border-green-500/50 rounded-lg">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-xs text-green-100 font-semibold tracking-wide">ENHANCED (CLEAR)</span>
+                </div>
+                {/* Detection count badge */}
+                {Object.keys(detectedDehazed).length > 0 && (
+                  <div className="absolute bottom-3 left-3 flex gap-1.5 flex-wrap">
+                    {Object.entries(detectedDehazed).map(([cls, count]) => (
+                      <span
+                        key={cls}
+                        className={`px-2 py-0.5 rounded-md text-xs font-bold border capitalize ${
+                          (classColors[cls] ?? defaultColor).bg
+                        } ${
+                          (classColors[cls] ?? defaultColor).text
+                        } ${
+                          (classColors[cls] ?? defaultColor).border
+                        }`}
+                      >
+                        {count}× {cls}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500">
+                <ImageOff className="w-12 h-12" />
+                <p className="text-sm">{backendOnline ? 'Processing...' : 'Backend offline'}</p>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
@@ -353,7 +386,7 @@ export default function Results() {
             <p className="text-xs text-slate-500 mt-1">How well image structure was preserved (1.0 = identical)</p>
           </div>
 
-          {/* NEW: Object Detection mAP — spans full width on desktop */}
+          {/* YOLOv8 mAP — spans full width */}
           <div className="md:col-span-2">
             <div className="flex justify-between mb-2">
               <span className="text-sm text-slate-300">Object Detection mAP</span>
@@ -368,8 +401,8 @@ export default function Results() {
               />
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              HOG-based person detection mAP, IoU ≥ 0.5. Dehazed detections used as proxy ground truth.
-              0.0 may indicate no detectable people in either image.
+              YOLOv8n multi-class mAP@0.5 — detects people, cars, trucks, buses, motorbikes.
+              Dehazed detections used as proxy ground truth. Higher = fog degraded detection less.
             </p>
           </div>
         </div>
@@ -389,6 +422,75 @@ export default function Results() {
             Derived from SSIM &times; 100 — high values indicate structure preservation
           </p>
         </div>
+        {/* Detected Objects Panel */}
+        {hasData && allClasses.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mt-6 border-t border-slate-800 pt-6"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Car className="w-5 h-5 text-cyan-400" />
+              <h4 className="text-sm font-semibold text-cyan-100">Detected Objects (YOLOv8n)</h4>
+            </div>
+
+            {/* Column headers */}
+            <div className="grid grid-cols-3 gap-3 mb-2 text-xs text-slate-500 font-medium uppercase tracking-wider">
+              <span>Class</span>
+              <span className="text-center">Foggy Image</span>
+              <span className="text-center">Dehazed Image</span>
+            </div>
+
+            <div className="space-y-2">
+              {allClasses.map((cls) => {
+                const hazyCount    = detectedHazy[cls] ?? 0;
+                const dehazedCount = detectedDehazed[cls] ?? 0;
+                const delta        = dehazedCount - hazyCount;
+                const color        = classColors[cls] ?? defaultColor;
+
+                return (
+                  <div key={cls} className="grid grid-cols-3 gap-3 items-center">
+                    {/* Class badge */}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${color.bg} ${color.text} ${color.border} capitalize w-fit`}>
+                      {cls}
+                    </span>
+
+                    {/* Foggy count */}
+                    <div className="text-center">
+                      <span className={`text-lg font-bold ${
+                        hazyCount === 0 ? 'text-slate-600' : 'text-slate-200'
+                      }`}>{hazyCount}</span>
+                    </div>
+
+                    {/* Dehazed count + delta */}
+                    <div className="flex items-center justify-center gap-2">
+                      <span className={`text-lg font-bold ${
+                        dehazedCount === 0 ? 'text-slate-600' : 'text-slate-200'
+                      }`}>{dehazedCount}</span>
+                      {delta !== 0 && (
+                        <span className={`flex items-center gap-0.5 text-xs font-semibold ${
+                          delta > 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          <ArrowRight className={`w-3 h-3 ${
+                            delta > 0 ? 'rotate-[-45deg]' : 'rotate-[45deg]'
+                          }`} />
+                          {delta > 0 ? `+${delta}` : delta}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {allClasses.length === 0 && (
+              <p className="text-sm text-slate-500 italic">
+                No highway objects detected in either image.
+              </p>
+            )}
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Download Section */}

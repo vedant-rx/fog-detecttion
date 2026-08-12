@@ -33,7 +33,11 @@ export interface LatestCapture {
   entropy_dehazed?: number;
   entropy_gain?: number;
   ssim?: number;
-  map?: number;             // NEW: Object Detection mAP (HOG-based)
+  map?: number;               // YOLOv8n multi-class mAP@0.5
+  detected_hazy?: Record<string, number>;     // {class: count} in foggy image
+  detected_dehazed?: Record<string, number>;  // {class: count} in dehazed image
+  annotated_hazy_url?: string;     // foggy image with detection boxes drawn
+  annotated_dehazed_url?: string;  // dehazed image with detection boxes drawn
 }
 
 export async function fetchLatest(): Promise<LatestCapture | null> {

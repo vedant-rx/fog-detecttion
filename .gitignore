@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Generated images / outputs
+backend/uploads/
+backend/dehazed/
+backend/annotated/
+backend/previews/
+
+# Generated/debug files
+backend/debug_detections.jpg
+
+# Large ML model
+backend/yolov8n.pt
+
+# Logs / generated data
+backend/sensor_log.csv

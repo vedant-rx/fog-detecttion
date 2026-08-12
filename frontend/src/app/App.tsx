@@ -6,6 +6,7 @@ import LiveFeed from './components/LiveFeed';
 import UploadImage from './components/UploadImage';
 import Processing from './components/Processing';
 import Results from './components/Results';
+import Gallery from './components/Gallery';
 import About from './components/About';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -23,6 +24,7 @@ export default function App() {
               <Route path="upload" element={<UploadImage />} />
               <Route path="processing" element={<Processing />} />
               <Route path="results" element={<Results />} />
+              <Route path="gallery" element={<Gallery />} />
               <Route path="about" element={<About />} />
             </Route>
           </Routes>
